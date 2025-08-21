@@ -41,9 +41,10 @@ struct Property {
         Unknown = 0,
         Fundamental = 1,
         Custom = 1 << 1,
-        Pointer = 1 << 2,
-        SequenceContainer = 1 << 3,
-        AssociativeContainer = 1 << 4,
+        Enum = 1 << 2,
+        Pointer = 1 << 3,
+        SequenceContainer = 1 << 4,
+        AssociativeContainer = 1 << 5,
     };
 
     int type = Type::Unknown;
@@ -53,7 +54,12 @@ struct Property {
 
     template<typename T>
     bool isType() {
-        return traits::typeName<T> == type_name;
+        return traits::typeName<T>() == type_name;
+    }
+
+    // TODO ¿¼ÂÇÓÃvariant°ü×°
+    void* getValue(void* instance) {
+        return reinterpret_cast<void*>(((char*)instance + offset));
     }
 
     template<typename T>
@@ -148,14 +154,16 @@ struct ClassInfo {
         size_t offset = reinterpret_cast<size_t>(&(reinterpret_cast<T const volatile*>(nullptr)->*var_ptr));
         using ValueType = std::remove_const_t<std::remove_pointer_t<std::remove_reference_t<PropertyType>>>;
         int prop_type = Property::Type::Unknown;
-        if constexpr (traits::is_sequence_container<ValueType>::value)
-            prop_type = Property::Type::SequenceContainer;
-        else if constexpr (traits::is_associative_container<ValueType>::value)
-            prop_type = Property::Type::AssociativeContainer;
-        else if constexpr (std::is_fundamental_v<ValueType>)
+        if constexpr (traits::is_fundamental_v<ValueType>)
             prop_type = Property::Type::Fundamental;
-        else
+        else if constexpr (traits::is_sequence_container_v<ValueType>)
+            prop_type = Property::Type::SequenceContainer;
+        else if constexpr (traits::is_associative_container_v<ValueType>)
+            prop_type = Property::Type::AssociativeContainer;
+        else if constexpr (std::is_class_v<ValueType>)
             prop_type = Property::Type::Custom;
+        else if constexpr (std::is_enum_v<ValueType>)
+            prop_type = Property::Type::Enum;
         if constexpr (std::is_pointer_v<PropertyType>)
             prop_type = prop_type | Property::Type::Pointer;
         Property property_info = { prop_type, offset, property_type_name_, property_name_ };
@@ -296,7 +304,7 @@ template <class T>
 inline MetaType MetaTypeOf() { return MetaType(traits::typeName<std::remove_const_t<std::remove_pointer_t<std::remove_reference_t<T>>>>()); }
 
 template <class T>
-inline MetaType MetaTypeOf(T&& obj) { return MetaTypeOf<T>(); }
+inline MetaType MetaTypeOf(T&& obj) { return MetaType(traits::typeName(std::forward<T>(obj))); }
 
 
 class Instance {
@@ -312,7 +320,7 @@ public:
 
     void* getPropertyValue(int index) const {
         auto& property = m_meta.property(index);
-        return property.getValue<void*>(m_instance);
+        return property.getValue(m_instance);
     }
     template<typename T>
     T getPropertyValue(int index) const {
