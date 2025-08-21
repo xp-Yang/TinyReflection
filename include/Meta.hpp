@@ -21,8 +21,9 @@ namespace Meta {
 //     Method method = metaType.method(methodName);
 //     method.invoke<ReturnType>(&obj, args...);
 //3.根据类名称创建实例
+//     TODO
 //     MetaType meta = MetaTypeOf<T>(obj);
-//     Instance v = meta.createInstance();
+//     Variant v = meta.createInstance();
 //4.迭代对象的所有属性、方法
 //     Instance v(obj)
 //     MetaType type = v.metaType();
@@ -39,31 +40,31 @@ namespace Meta {
 struct Property {
     enum Type : int {
         Unknown = 0,
-        Fundamental = 1,
-        Custom = 1 << 1,
-        Enum = 1 << 2,
-        Pointer = 1 << 3,
+        Pointer = 1,
+        Fundamental = 1 << 1,
+        Custom = 1 << 2,
+        Enum = 1 << 3,
         SequenceContainer = 1 << 4,
         AssociativeContainer = 1 << 5,
     };
 
     int type = Type::Unknown;
     size_t offset;
+    size_t size;
     std::string type_name;
     std::string name;
 
     template<typename T>
-    bool isType() {
-        return traits::typeName<T>() == type_name;
+    bool isType() const {
+        return MetaTypeOf<T>().className() == type_name;
     }
 
-    // TODO 考虑用variant包装
-    void* getValue(void* instance) {
+    void* getValue(void* instance) const {
         return reinterpret_cast<void*>(((char*)instance + offset));
     }
 
     template<typename T>
-    T getValue(void* instance) {
+    T getValue(void* instance) const {
         // T是指针类型，说明property的类型本身就是指针类型，走T为值类型的分支
         // if constexpr (std::is_pointer_v<T>) {
         //     return reinterpret_cast<T>(((char*)instance + offset));
@@ -92,7 +93,7 @@ struct Property {
     }
 
     template<typename T>
-    void setValue(void* instance, T&& value) {
+    void setValue(void* instance, T&& value) const {
         // T是指针类型，说明property的类型本身就是指针类型，当成左值指针或右值指针，走引用分支
         // if constexpr (std::is_pointer_v<std::remove_reference_t<T>>) {
         //     *getValue<T>(instance) = *value;
@@ -141,6 +142,7 @@ struct Method {
 
 struct ClassInfo {
     std::string class_name;
+    std::string raw_class_name;
     std::vector<Property> property_infos;
     std::vector<Method> method_infos;
     std::vector<Constructor> ctor_infos;
@@ -148,8 +150,7 @@ struct ClassInfo {
     template <class T, class PropertyType>
     inline ClassInfo& registerProperty(PropertyType T::* var_ptr, std::string_view property_name)
     {
-        std::string class_name = traits::typeName<T>();
-        std::string property_type_name_ = traits::typeName<PropertyType>();
+        std::string property_type_name_ = MetaTypeOf<PropertyType>().className();
         std::string property_name_ = std::string(property_name);
         size_t offset = reinterpret_cast<size_t>(&(reinterpret_cast<T const volatile*>(nullptr)->*var_ptr));
         using ValueType = std::remove_const_t<std::remove_pointer_t<std::remove_reference_t<PropertyType>>>;
@@ -164,16 +165,17 @@ struct ClassInfo {
             prop_type = Property::Type::Custom;
         else if constexpr (std::is_enum_v<ValueType>)
             prop_type = Property::Type::Enum;
-        if constexpr (std::is_pointer_v<PropertyType>)
+        if constexpr (std::is_pointer_v<PropertyType>) {
             prop_type = prop_type | Property::Type::Pointer;
-        Property property_info = { prop_type, offset, property_type_name_, property_name_ };
+        }
+        Property property_info = { prop_type, offset, sizeof(ValueType), property_type_name_, property_name_ };
         property_infos.emplace_back(property_info);
         return *this;
     }
 
     template <typename Arg>
     inline std::string getArgTypeName() {
-        return traits::typeName<Arg>();
+        return MetaTypeOf<Arg>().className();
     }
 
     template <class T, typename ... Args>
@@ -186,10 +188,9 @@ struct ClassInfo {
     }
 
     template <class T, class ReturnType, typename ... Args>
-    inline ClassInfo& registerMethod(ReturnType(T::* method_ptr)(Args...) const, std::string_view method_name)
+    inline ClassInfo& registerMethod(ReturnType(T::* method_ptr)(Args...), std::string_view method_name)
     {
-        std::string class_name = traits::typeName<T>();
-        std::string return_type_name = traits::typeName<ReturnType>();
+        std::string return_type_name = MetaTypeOf<ReturnType>().className();
         std::string method_name_ = std::string(method_name);
         auto arg_types = std::initializer_list<std::string>{ getArgTypeName<Args>() ... };
         std::string method_signature = return_type_name + " " + method_name_ + "(";
@@ -210,28 +211,37 @@ struct ClassInfo {
 inline std::unordered_map<std::string, ClassInfo> global_class_info;
 
 template <class T>
-inline ClassInfo& registerClass()
+inline ClassInfo& registerClass(std::string class_name = {})
 {
-    std::string class_name = traits::typeName<T>();
-    if (global_class_info.find(class_name) != global_class_info.end()) {
+    std::string raw_class_name = traits::typeName<T>();
+    if (class_name.empty())
+        class_name = raw_class_name;
+    if (global_class_info.find(raw_class_name) != global_class_info.end()) {
         assert(false);
     }
-    global_class_info.insert({ class_name, ClassInfo{class_name, {}, {}} });
-    return global_class_info.at(class_name);
+    global_class_info.insert({ raw_class_name, ClassInfo{class_name, raw_class_name, {}, {}} });
+    return global_class_info.at(raw_class_name);
 }
 
 
 class MetaType {
 public:
-    MetaType(std::string_view class_name)
-        : m_class_info(global_class_info.at(std::string(class_name)))
-    {}
+    MetaType() {}
+    MetaType(std::string_view raw_class_name)
+    {
+        std::string rawClassName = std::string(raw_class_name);
+        if (global_class_info.find(rawClassName) == global_class_info.end()) {
+            global_class_info[rawClassName] = ClassInfo{ rawClassName, rawClassName, {}, {} };
+        }
+        m_class_info = global_class_info.at(rawClassName);
+    }
     MetaType(const MetaType& rhs) = default;
 
     const std::string& className() const { return m_class_info.class_name; }
+    const std::string& rawClassName() const { return m_class_info.raw_class_name; }
 
     template<typename T, typename ... Args>
-    T createInstance(Args&& ... args) {
+    T createInstance(Args&& ... args) const {
         const auto& arg_types = std::initializer_list<std::string>{ getArgTypeName<Args>() ... };
         for (const auto& ctor_info : m_class_info.ctor_infos) {
             if (ctor_info.arg_types.size() != arg_types.size())
@@ -263,12 +273,7 @@ public:
         return {};
     }
     std::vector<Property> properties() const {
-        std::vector<Property> res;
-        res.reserve(m_class_info.property_infos.size());
-        for (int i = 0; i < m_class_info.property_infos.size(); i++) {
-            res.push_back(m_class_info.property_infos[i]);
-        }
-        return res;
+        return m_class_info.property_infos;
     }
 
     int methodCount() const { return m_class_info.method_infos.size(); }
@@ -286,22 +291,15 @@ public:
         return {};
     }
     std::vector<Method> methods() const {
-        std::vector<Method> res;
-        res.reserve(m_class_info.method_infos.size());
-        for (int i = 0; i < m_class_info.method_infos.size(); i++) {
-            res.push_back(m_class_info.method_infos[i]);
-        }
-        return res;
+        return m_class_info.method_infos;
     }
 
 private:
-    MetaType() = delete;
-
     ClassInfo m_class_info;
 };
 
 template <class T>
-inline MetaType MetaTypeOf() { return MetaType(traits::typeName<std::remove_const_t<std::remove_pointer_t<std::remove_reference_t<T>>>>()); }
+inline MetaType MetaTypeOf() { return MetaType(traits::typeName<T>()); }
 
 template <class T>
 inline MetaType MetaTypeOf(T&& obj) { return MetaType(traits::typeName(std::forward<T>(obj))); }
@@ -309,14 +307,47 @@ inline MetaType MetaTypeOf(T&& obj) { return MetaType(traits::typeName(std::forw
 
 class Instance {
 public:
-    template <class T>
-    Instance(T& obj, std::enable_if_t<!std::is_pointer_v<T>>* = nullptr) : Instance(MetaTypeOf<T>(), (void*)(&obj)) {}
+    template <typename T>
+    Instance(T& obj) : Instance(MetaTypeOf<T>(), (void*)(&obj)) {}
+    template <typename T>
+    Instance(T* obj) : Instance(MetaTypeOf<T>(), obj) {}
     Instance(std::string_view type_name, void* instance) : Instance(MetaType(type_name), instance) {}
     Instance(const Instance& rhs) = default;
 
 public:
-    void* instance() { return m_instance; }
+    void* instance() const { return m_instance; }
     const MetaType& metaType() const { return m_meta; }
+    std::string className() const { return m_meta.className(); }
+
+    template <typename T>
+    bool isType() const {
+        return m_meta.className() == MetaTypeOf<T>().className();
+    }
+
+    template<typename T>
+    T getValue() const {
+        using ValueType = std::remove_const_t<std::remove_reference_t<T>>;
+        if (!isType<ValueType>())
+            throw std::exception();
+        if constexpr (std::is_lvalue_reference_v<T>) {
+            if constexpr (std::is_const_v<std::remove_reference_t<T>>) {
+                // T是const左值引用
+                return *reinterpret_cast<const ValueType*>(m_instance);
+            }
+            else {
+                // T是非const左值引用
+                return *reinterpret_cast<ValueType*>(m_instance);
+            }
+        }
+        else if constexpr (std::is_rvalue_reference_v<T>) {
+            // T是右值引用
+            return std::move(*reinterpret_cast<ValueType*>(m_instance));
+        }
+        else {
+            // T是值类型
+            return *reinterpret_cast<T*>(m_instance);
+        }
+    }
 
     void* getPropertyValue(int index) const {
         auto& property = m_meta.property(index);
@@ -343,6 +374,79 @@ protected:
     Instance(const MetaType& meta, void* instance) : m_meta(meta), m_instance(instance) {}
 
     void* m_instance;
+    MetaType m_meta;
+};
+
+class Variant {
+public:
+    Variant() = default;
+    template <class T>
+    Variant(T&& obj) {
+        m_meta = MetaTypeOf<T>();
+        m_data_size = sizeof(T);
+        using ValueType = std::remove_const_t<std::remove_reference_t<T>>;
+        if constexpr (std::is_pointer_v<ValueType>)
+            m_data = obj;
+        else {
+            // 调用T的拷贝or移动构造
+            m_data = new ValueType(std::forward<T>(obj));
+        }
+    }
+    
+public:
+    bool isValid() const { return m_data != nullptr; }
+
+    template <typename T>
+    bool isType() const {
+        return m_meta.className() == MetaTypeOf<T>().className();
+    }
+
+    MetaType metaType() const { return m_meta; }
+
+    std::string className() const { return m_meta.className(); }
+
+    void clear() {
+        m_data = nullptr;
+        m_data_size = 0;
+        m_meta = MetaType();
+    }
+
+    template<typename T>
+    T getValue() const {
+        using ValueType = std::remove_const_t<std::remove_reference_t<T>>;
+        if (!isType<ValueType>())
+            throw std::exception();
+        if constexpr (std::is_lvalue_reference_v<T>) {
+            if constexpr (std::is_const_v<std::remove_reference_t<T>>) {
+                // T是const左值引用
+                return *reinterpret_cast<const ValueType*>(m_data);
+            }
+            else {
+                // T是非const左值引用
+                return *reinterpret_cast<ValueType*>(m_data);
+            }
+        }
+        else if constexpr (std::is_rvalue_reference_v<T>) {
+            // T是右值引用
+            return std::move(*reinterpret_cast<ValueType*>(m_data));
+        }
+        else {
+            // T是值类型
+            return *reinterpret_cast<T*>(m_data);
+        }
+    }
+
+    template<typename T>
+    void setValue(T&& value) const {
+        using ValueType = std::remove_const_t<std::remove_reference_t<T>>;
+        if (!isType<ValueType>())
+            throw std::exception();
+        *reinterpret_cast<T*>(m_data) = value;
+    }
+
+private:
+    void* m_data = nullptr;
+    size_t m_data_size = 0;
     MetaType m_meta;
 };
 

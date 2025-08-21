@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <string>
+#include <regex>
 #include <map>
 #include <unordered_map>
 #include <set>
@@ -61,15 +62,31 @@ namespace traits {
 //    return name;
 //}
 
-// typeid能正确推导多态的类型（要有虚函数）
+// typeid能正确推导多态的类型（要有虚函数），和各种引用类型
+// typeid(T).name()的结果：
+// T -> T
+// const T& -> T
+// T& -> T
+// T&& -> T
+// T* -> T * __ptrXX
+// const T* -> T const * __ptrXX
+// T* const -> T * __ptrXX
+// const T* const & -> T const * __ptrXX
 template<typename T>
-constexpr std::string typeName(T&& obj) noexcept {
-    return typeid(std::forward<T>(obj)).name();
+constexpr std::string typeName() noexcept {
+    std::string name = typeid(T).name();
+    if constexpr (std::is_pointer_v<std::remove_reference_t<T>>) {
+        std::regex pattern1(" \\* __ptr32");
+        std::regex pattern2(" \\* __ptr64");
+        name = std::regex_replace(name, pattern1, "*");
+        name = std::regex_replace(name, pattern2, "*");
+    }
+    return name;
 }
 
 template<typename T>
-constexpr std::string typeName() noexcept {
-    return typeid(T).name();
+constexpr std::string typeName(T&& obj) noexcept {
+    return typeName<T>();
 }
 
 
