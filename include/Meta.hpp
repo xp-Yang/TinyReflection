@@ -11,6 +11,14 @@
 
 namespace Meta {
 
+//0.注册类型
+//     registerClass<Obj>("Obj").
+//         registerConstructor<Obj>().
+//         registerProperty(&Obj::x, "x").
+//         registerProperty(&Obj::y, "y").
+//         registerMethod(&Obj::getId, "getId");
+//     显式注册类名：registerClass<Obj>("Obj");
+//     隐式注册类名：registerClass<Obj>("");
 //1.根据名称读写对象的属性
 //     T obj;
 //     MetaType metaType = MetaTypeOf(obj);
@@ -36,6 +44,7 @@ namespace Meta {
 //5.为类型，属性，函数，参数追加元数据
 //     TODO
 
+class Instance;
 
 struct Property {
     enum Type : int {
@@ -57,61 +66,13 @@ struct Property {
     template<typename T>
     bool isType() const { return type_name == MetaTypeOf<T>().typeName(); }
 
-    void* getValue(void* instance) const {
-        return reinterpret_cast<void*>(((char*)instance + offset));
-    }
+    Instance getValue(const Instance& instance) const;
 
     template<typename T>
-    T getValue(void* instance) const {
-        // T是指针类型，说明property的类型本身就是指针类型，走T为值类型的分支
-        // if constexpr (std::is_pointer_v<T>) {
-        //     return reinterpret_cast<T>(((char*)instance + offset));
-        // }
-        if constexpr (std::is_lvalue_reference_v<T>) {
-            if constexpr (std::is_const_v<std::remove_reference_t<T>>) {
-                // T是const左值引用
-                using ValueType = std::remove_reference_t<T>;
-                return *reinterpret_cast<const ValueType*>(((char*)instance + offset));
-            }
-            else {
-                // T是非const左值引用
-                using ValueType = std::remove_reference_t<T>;
-                return *reinterpret_cast<ValueType*>(((char*)instance + offset));
-            }
-        }
-        else if constexpr (std::is_rvalue_reference_v<T>) {
-            // T是右值引用
-            using ValueType = std::remove_reference_t<T>;
-            return std::move(*reinterpret_cast<ValueType*>(((char*)instance + offset)));
-        }
-        else {
-            // T是值类型
-            return *reinterpret_cast<T*>(((char*)instance + offset));
-        }
-    }
+    T getValue(const Instance& instance) const { return getValue(instance).getValue<T>(); }
 
     template<typename T>
-    void setValue(void* instance, T&& value) const {
-        // T是指针类型，说明property的类型本身就是指针类型，当成左值指针或右值指针，走引用分支
-        // if constexpr (std::is_pointer_v<std::remove_reference_t<T>>) {
-        //     *getValue<T>(instance) = *value;
-        // }
-        if constexpr (std::is_lvalue_reference_v<T>) {
-            if constexpr (std::is_const_v<std::remove_reference_t<T>>) {
-                // const左值引用
-                using ValueType = std::remove_const_t<std::remove_reference_t<T>>;
-                getValue<ValueType&>(instance) = value;
-            }
-            else {
-                // 非const左值引用
-                getValue<T>(instance) = value;
-            }
-        }
-        else if constexpr (std::is_rvalue_reference_v<T&&>) {
-            // 右值引用
-            getValue<T&>(instance) = value;
-        }
-    }
+    void setValue(const Instance& instance, T&& value) const { getValue(instance).setValue(value); }
 };
 
 struct Constructor {
@@ -203,19 +164,15 @@ struct ClassInfo {
     }
 };
 
+inline std::unordered_map<std::string, std::string> type_name_map;
 inline std::unordered_map<std::string, ClassInfo> global_class_info;
 
 template <class T>
 inline ClassInfo& registerClass(std::string class_name = {})
 {
     std::string raw_class_name = traits::rawTypeName<T>();
-    if (traits::type_name_map.find(raw_class_name) != traits::type_name_map.end())
-        return global_class_info.at(traits::type_name_map.at(raw_class_name));
-
-    if (class_name.empty()) {
-        if (traits::type_name_map.find(raw_class_name) != traits::type_name_map.end())
-            class_name = traits::type_name_map[raw_class_name];
-        else {
+    if (type_name_map.find(raw_class_name) == type_name_map.end()) {
+        if (class_name.empty()) {
             class_name = raw_class_name;
             if constexpr (std::is_pointer_v<std::remove_reference_t<T>>) {
                 std::regex pattern1(" \\* __ptr32");
@@ -224,9 +181,23 @@ inline ClassInfo& registerClass(std::string class_name = {})
                 class_name = std::regex_replace(class_name, pattern2, "*");
             }
         }
+        type_name_map[raw_class_name] = class_name;
+        global_class_info.insert({ class_name, ClassInfo{class_name, {}, {}} });
     }
-    traits::type_name_map[raw_class_name] = class_name;
-    global_class_info.insert({ class_name, ClassInfo{class_name, {}, {}} });
+    else {
+        if (class_name.empty()) {
+            class_name = type_name_map.at(raw_class_name);
+        }
+        else {
+            std::string origin_class_name = type_name_map.at(raw_class_name);
+            if (origin_class_name != class_name) {
+                ClassInfo origin_class_info = global_class_info.at(origin_class_name);
+                type_name_map[origin_class_name] = class_name;
+                global_class_info.erase(origin_class_name);
+                global_class_info.insert({ class_name, origin_class_info });
+            }
+        }
+    }
     return global_class_info.at(class_name);
 }
 
@@ -304,10 +275,6 @@ public:
         : m_meta(MetaTypeOf<T>())
         , m_data((void*)(&obj))
     {}
-    Instance(std::string type_name, void* data)
-        : m_meta(MetaType(type_name))
-        , m_data(data)
-    {}
     Instance(const Instance& rhs) = default;
 
 public:
@@ -320,6 +287,7 @@ public:
 
     template<typename T>
     T getValue() const {
+        // T是指针类型，说明数据本身就是指针类型，走T为值类型的分支
         using ValueType = std::remove_const_t<std::remove_reference_t<T>>;
         if (!isType<ValueType>())
             throw std::exception();
@@ -343,8 +311,35 @@ public:
         }
     }
 
+    template<typename T>
+    void setValue(T&& value) const {
+        using ValueType = std::remove_const_t<std::remove_reference_t<T>>;
+        if (!isType<ValueType>())
+            throw std::exception();
+        if constexpr (std::is_lvalue_reference_v<T>) {
+            if constexpr (std::is_const_v<std::remove_reference_t<T>>) {
+                // const左值引用
+                getValue<ValueType&>() = value;
+            }
+            else {
+                // 非const左值引用
+                getValue<T>() = value;
+            }
+        }
+        else if constexpr (std::is_rvalue_reference_v<T&&>) {
+            // 右值引用
+            getValue<T&>() = value;
+        }
+    }
+
 private:
     Instance() = delete;
+    friend class Property;
+    friend class Variant;
+    Instance(std::string type_name, void* obj_ptr)
+        : m_meta(MetaType(type_name))
+        , m_data(obj_ptr)
+    {}
 
     void* m_data;
     MetaType m_meta;
@@ -394,6 +389,10 @@ private:
     size_t m_data_size = 0;
     MetaType m_meta;
 };
+
+Instance Property::getValue(const Instance& instance) const {
+    return Instance(type_name, ((char*)instance.instance() + offset));
+}
 
 }
 

@@ -26,14 +26,7 @@ namespace traits {
 //}
 //
 //template<typename T>
-//constexpr std::string typeName2(T&& obj) noexcept {
-//    std::string_view sig = rawSignature<T>();
-//    std::string_view sig2 = rawSignature<T&&>();
-//    return typeName<T>();
-//}
-//
-//template<typename T>
-//constexpr std::string typeName2() noexcept {
+//constexpr std::string rawTypeName2() noexcept {
 //    constexpr std::string_view mark_str = "rawSignature";
 //    std::string_view sig = rawSignature<T>();
 //#if defined(__clang__)
@@ -47,22 +40,9 @@ namespace traits {
 //    sig = sig.substr(start_index);
 //    std::string name = std::string(sig.substr(0, sig.size() - 16));
 //#endif
-//    //const std::vector<std::string> class_keys = {
-//    //"struct",
-//    //"class",
-//    //"enum",
-//    //"union",
-//    //};
-//    //for (const auto& class_key : class_keys) {
-//    //    auto pos = name.find(class_key);
-//    //    if (pos != std::string::npos) {
-//    //        name = name.substr(pos + class_key.size() + 1);
-//    //    }
-//    //}
 //    return name;
 //}
 
-std::unordered_map<std::string, std::string> type_name_map;
 // typeid能正确推导多态的类型（要有虚函数），和各种引用类型
 // typeid(T).name()的结果：
 // T -> T
@@ -79,16 +59,8 @@ constexpr std::string rawTypeName() noexcept {
 }
 
 template<typename T>
-constexpr std::string typeName() noexcept {
-    std::string name = rawTypeName<T>();
-    if (type_name_map.find(name) != type_name_map.end())
-        name = type_name_map[name];
-    return name;
-}
-
-template<typename T>
-constexpr std::string typeName(T&& obj) noexcept {
-    return typeName<T>();
+constexpr std::string rawTypeName(T&& obj) noexcept {
+    return rawTypeName<T>();
 }
 
 

@@ -54,8 +54,7 @@ public:
 	}
 };
 
-std::unordered_map<std::string, std::function<void(Property, void*)>> m_property_reader;
-std::unordered_map<std::string, std::function<void(std::string, const Instance&)>> m_inst_reader;
+std::unordered_map<std::string, std::function<std::string(std::string, const Instance&)>> m_inst_reader;
 
 void registerAll() {
 	registerClass<std::vector<int>>("std::vector<int>");
@@ -97,261 +96,217 @@ void registerAll() {
 		registerMethod(&DerivObj::getId, "getId").
 		registerMethod(&DerivObj::getDerivId, "getDerivId").
 		registerMethod(&DerivObj::dumb, "dumb");
-
-	m_property_reader[MetaTypeOf<float>().typeName()] = [](Property prop, void* instance) {
-		std::cout << (int)prop.type << " " << prop.type_name << " " << prop.name << " " << (prop.getValue<float>(instance)) << std::endl;
-	};
-	m_property_reader[MetaTypeOf<float*>().typeName()] = [](Property prop, void* instance) {
-		std::cout << (int)prop.type << " " << prop.type_name << " " << prop.name << " " << *(prop.getValue<float*>(instance)) << std::endl;
-	};
-	m_property_reader[MetaTypeOf<int>().typeName()] = [](Property prop, void* instance) {
-		std::cout << (int)prop.type << " " << prop.type_name << " " << prop.name << " " << (prop.getValue<int>(instance)) << std::endl;
-	};
-	m_property_reader[MetaTypeOf<std::string>().typeName()] = [](Property prop, void* instance) {
-		std::cout << (int)prop.type << " " << prop.type_name << " " << prop.name << " " << (prop.getValue<std::string>(instance)) << std::endl;
-	};
-	m_property_reader[MetaTypeOf<std::vector<int>>().typeName()] = [](Property prop, void* instance) {
-		std::cout << (int)prop.type << " " << prop.type_name << " " << prop.name;
-		int i = 0;
-		const std::vector<int>& vec = prop.getValue<const std::vector<int>&>(instance);
-		for (const auto& val : vec) {
-			if (i == 0)
-				std::cout << " [";
-			if (i == vec.size() - 1)
-				std::cout << val << "]";
-			else
-				std::cout << val << ", ";
-			i++;
-		}
-		std::cout << std::endl;
-	};
-	m_property_reader[MetaTypeOf<std::vector<std::shared_ptr<Obj>>>().typeName()] = [](Property prop, void* instance) {
-		std::cout << (int)prop.type << " " << prop.type_name << " " << prop.name;
-		int i = 0;
-		const std::vector<std::shared_ptr<Obj>>& vec = (prop.getValue<const std::vector<std::shared_ptr<Obj>>&>(instance));
-		for (const auto& val : vec) {
-			if (i == 0)
-				std::cout << " [";
-			if (i == vec.size() - 1)
-				std::cout << val.get() << "]";
-			else
-				std::cout << val.get() << ", ";
-			i++;
-		}
-		std::cout << std::endl;
-	};
-	m_property_reader[MetaTypeOf<std::map<std::string, int>>().typeName()] = [](Property prop, void* instance) {
-		std::cout << (int)prop.type << " " << prop.type_name << " " << prop.name;
-		int i = 0;
-		const std::map<std::string, int>& map = prop.getValue<const std::map<std::string, int>&>(instance);
-		for (const auto& pair : map) {
-			if (i == 0)
-				std::cout << " {";
-			if (i == map.size() - 1)
-				std::cout << "{" << pair.first << ", " << pair.second << "}" << "}";
-			else
-				std::cout << "{" << pair.first << ", " << pair.second << "}" << ", ";
-			i++;
-		}
-		std::cout << std::endl;
-	};
-	m_property_reader[MetaTypeOf<E>().typeName()] = [](Property prop, void* instance) {
-		std::cout << (int)prop.type << " " << prop.type_name << " " << prop.name << " " << (prop.getValue<int>(instance)) << std::endl;
-	};
-	m_property_reader[MetaTypeOf<CusType>().typeName()] = [](Property prop, void* instance) {
-		std::cout << (int)prop.type << " " << prop.type_name << " " << prop.name << /*" " << (prop.getValue<CusType>(instance)) <<*/ std::endl;
-		MetaType mt = MetaTypeOf<CusType>();
-		for (auto& p : mt.properties()) {
-			if (m_property_reader.find(p.type_name) != m_property_reader.end()) {
-				m_property_reader[p.type_name](p, prop.getValue(instance));
-			}
-		}
-	};
-
-	m_inst_reader[MetaTypeOf<float>().typeName()] = [](std::string inst_name, const Instance& inst) {
-		std::cout << inst.typeName() << " " << inst_name << " " << (inst.getValue<float>()) << std::endl;
-	};
-	m_inst_reader[MetaTypeOf<float*>().typeName()] = [](std::string inst_name, const Instance& inst) {
-		std::cout << inst.typeName() << " " << inst_name << " " << *(inst.getValue<float*>()) << std::endl;
-	};
-	m_inst_reader[MetaTypeOf<int>().typeName()] = [](std::string inst_name, const Instance& inst) {
-		std::cout << inst.typeName() << " " << inst_name << " " << (inst.getValue<int>()) << std::endl;
-	};
-	m_inst_reader[MetaTypeOf<std::string>().typeName()] = [](std::string inst_name, const Instance& inst) {
-		std::cout << inst.typeName() << " " << inst_name << " " << (inst.getValue<std::string>()) << std::endl;
-	};	
-	m_inst_reader[MetaTypeOf<std::vector<int>>().typeName()] = [](std::string inst_name, const Instance& inst) {
-		std::cout << inst.typeName() << " " << inst_name;
-		int i = 0;
-		const std::vector<int>& vec = inst.getValue<const std::vector<int>&>();
-		for (const auto& val : vec) {
-			if (i == 0)
-				std::cout << " [";
-			if (i == vec.size() - 1)
-				std::cout << val << "]";
-			else
-				std::cout << val << ", ";
-			i++;
-		}
-		std::cout << std::endl;
-	};
-	m_inst_reader[MetaTypeOf<std::vector<std::shared_ptr<Obj>>>().typeName()] = [](std::string inst_name, const Instance& inst) {
-		std::cout << inst.typeName() << " " << inst_name;
-		int i = 0;
-		const std::vector<std::shared_ptr<Obj>>& vec = (inst.getValue<const std::vector<std::shared_ptr<Obj>>&>());
-		for (const auto& val : vec) {
-			if (i == 0)
-				std::cout << " [";
-			if (i == vec.size() - 1)
-				std::cout << val.get() << "]";
-			else
-				std::cout << val.get() << ", ";
-			i++;
-		}
-		std::cout << std::endl;
-	};
-	m_inst_reader[MetaTypeOf<std::map<std::string, int>>().typeName()] = [](std::string inst_name, const Instance& inst) {
-		std::cout << inst.typeName() << " " << inst_name;
-		int i = 0;
-		const std::map<std::string, int>& map = inst.getValue<const std::map<std::string, int>&>();
-		for (const auto& pair : map) {
-			if (i == 0)
-				std::cout << " {";
-			if (i == map.size() - 1)
-				std::cout << "{" << pair.first << ", " << pair.second << "}" << "}";
-			else
-				std::cout << "{" << pair.first << ", " << pair.second << "}" << ", ";
-			i++;
-		}
-		std::cout << std::endl;
-	};
-	m_inst_reader[MetaTypeOf<E>().typeName()] = [](std::string inst_name, const Instance& inst) {
-		//std::cout << inst.typeName() << " " << inst_name << " " << inst.getValue<int>() << std::endl;
-	};
-	m_inst_reader[MetaTypeOf<CusType>().typeName()] = [](std::string inst_name, const Instance& inst) {
-		std::cout << inst.typeName() << " " << inst_name << " " << &inst.getValue<CusType>() << std::endl;
-		MetaType mt = MetaTypeOf<CusType>();
-		for (auto& p : mt.properties()) {
-			if (m_inst_reader.find(p.type_name) != m_inst_reader.end()) {
-				Instance inst_ = Instance(p.type_name, p.getValue(inst.instance()));
-				m_inst_reader[p.type_name](p.name, inst_);
-			}
-		}
-	};
-	m_inst_reader[MetaTypeOf<DerivObj>().typeName()] = [](std::string inst_name, const Instance& inst) {
-		std::cout << inst.typeName() << " " << inst_name << " " << &inst.getValue<DerivObj>() << std::endl;
-		MetaType mt = MetaTypeOf<DerivObj>();
-		for (auto& p : mt.properties()) {
-			if (m_inst_reader.find(p.type_name) != m_inst_reader.end()) {
-				Instance inst_ = Instance(p.type_name, p.getValue(inst.instance()));
-				m_inst_reader[p.type_name](p.name, inst_);
-			}
-		}
-	};
 }
 
 void traitsTest() {
-	std::cout << "==========" << __FUNCTION__ << "==========" << std::endl;
 	auto n0 = MetaTypeOf<int>();
 	auto n1 = MetaTypeOf<const int&>();
-	auto n2 = MetaTypeOf<int&>();
-	auto n3 = MetaTypeOf<int*&>();
-	auto n4 = MetaTypeOf<int**&&>();
+	auto n3 = MetaTypeOf<int*&&>();
 	auto n5 = MetaTypeOf<int***>();
 	auto n6 = MetaTypeOf<int* const>();
 	auto n7 = MetaTypeOf<const int*& const>();
+
 	const int&& ia = 1;
 	const int* ib = new int(2);
 	auto n8 = MetaTypeOf(ia);
 	auto n9 = MetaTypeOf(ib);
 	delete ib;
-}
 
-void readPropertiesTest() {
-	std::cout << "==========" << __FUNCTION__ << "==========" << std::endl;
-	DerivObj obj;
-	MetaType mt = MetaTypeOf(obj);
-	for (auto& prop : mt.properties()) {
-		if (m_property_reader.find(prop.type_name) != m_property_reader.end())
-			m_property_reader[prop.type_name](prop, &obj);
-		else
-			assert(false);
-	}
-}
-
-void writePropertiesTest() {
-	std::cout << "==========" << __FUNCTION__ << "==========" << std::endl;
-	Obj obj;
-	MetaType mt = MetaTypeOf(obj);
-	Property prop = mt.property("x");
-	const float ff = 1.9f;
-	prop.setValue(&obj, ff);
-	std::cout << prop.type_name << " " << prop.name << " " << " " << (prop.getValue<float>(&obj)) << std::endl;
-	prop.setValue(&obj, 2.9f);
-	std::cout << prop.type_name << " " << prop.name << " " << " " << (prop.getValue<const float&>(&obj)) << std::endl;
-}
-
-void invokeMethodsTest() {
-	std::cout << "==========" << __FUNCTION__ << "==========" << std::endl;
-	DerivObj obj;
-	MetaType mt = MetaTypeOf(obj);
-	for (auto method : mt.methods()) {
-		std::cout << method.signature << std::endl;
-	}
-	std::vector<float> v = { 3.0f };
-	auto ret = mt.method("getId").invoke<int>(&obj, 1, std::string("2"), v);
-	mt.method("dumb").invoke<void>(&obj);
-}
-
-void createInstanceTest() {
-	std::cout << "==========" << __FUNCTION__ << "==========" << std::endl;
-	MetaType mt = MetaTypeOf<Obj>();
-	Constructor obj_ctor = mt.constructor<>();
-	obj_ctor.invoke<Obj>();
-}
-
-void polymorphismTest() {
-	std::cout << "==========" << __FUNCTION__ << "==========" << std::endl;
 	Obj& obj = DerivObj();
-	auto n1 = MetaTypeOf(obj).typeName();
-	auto n2 = MetaTypeOf<DerivObj>().typeName();
-	bool equal = n1 == n2;
-
-	MetaType mt = MetaTypeOf(obj);
-	auto typeName = mt.typeName();
-}
-
-void serializeTest() {
-	std::cout << "==========" << __FUNCTION__ << "==========" << std::endl;
-	DerivObj obj;
-	Instance inst = Instance(obj);
-	m_inst_reader[inst.typeName()]("obj", inst);
+	auto n11 = MetaTypeOf(obj).typeName();
+	auto n12 = MetaTypeOf<DerivObj>().typeName();
 }
 
 void variantTest() {
-	std::cout << "==========" << __FUNCTION__ << "==========" << std::endl;
-
 	Variant v_i = 2;
 	v_i.setValue(3);
 	int i = v_i.getValue<int>();
 
 	int* i_ptr = new int(3);
-	int** i_pptr = new int*(i_ptr);
+	int** i_pptr = new int* (i_ptr);
 	Variant v_i_ptr = i_ptr;
 	int* i_p = v_i_ptr.getValue<int*>();
 	Variant v_i_pptr = i_pptr;
 	int** i_pp = v_i_pptr.getValue<int**>();
 }
 
+void readPropertiesTest() {
+	std::cout << "==========" << __FUNCTION__ << "==========" << std::endl;
+
+	DerivObj obj;
+	MetaType mt = MetaTypeOf(obj);
+	std::cout << "properties:" << std::endl;
+	for (auto& prop : mt.properties()) {
+		std::cout 
+			<< "type: " << (int)prop.type << " "
+			<< "offset: " << prop.offset << " "
+			<< "size: " << prop.size << " "
+			<< "type_name: " << prop.type_name << " "
+			<< "name:" << prop.name << " ";
+		if (prop.isType<float>())
+			std::cout << "value: " << prop.getValue<float>(obj);
+		std::cout << std::endl;
+	}
+	std::cout << "methods:" << std::endl;
+	for (auto method : mt.methods()) {
+		std::cout << "signature:" << method.signature << std::endl;
+	}
+}
+
+void writePropertiesTest() {
+	Obj obj;
+	MetaType mt = MetaTypeOf(obj);
+	Property prop = mt.property("x");
+	const float ff = 1.9f;
+	prop.setValue(obj, ff);
+	prop.setValue(obj, 2.9f);
+}
+
+void invokeMethodsTest() {
+	std::cout << "==========" << __FUNCTION__ << "==========" << std::endl;
+	DerivObj obj;
+	MetaType mt = MetaTypeOf(obj);
+	std::vector<float> v = { 3.0f };
+	auto ret = mt.method("getId").invoke<int>(&obj, 1, std::string("2"), v);
+	mt.method("dumb").invoke<void>(&obj);
+}
+
+void createInstanceTest() {
+	MetaType mt = MetaTypeOf<Obj>();
+	Constructor obj_ctor = mt.constructor<>();
+	obj_ctor.invoke<Obj>();
+}
+
+void serializeTest() {
+	std::cout << "==========" << __FUNCTION__ << "==========" << std::endl;
+
+	m_inst_reader[MetaTypeOf<float>().typeName()] = [](std::string inst_name, const Instance& inst) {
+		return inst.typeName() + " " + inst_name + " " + std::to_string(inst.getValue<float>());
+	};
+	m_inst_reader[MetaTypeOf<float*>().typeName()] = [](std::string inst_name, const Instance& inst) {
+		return inst.typeName() + " " + inst_name + " " + std::to_string(*(inst.getValue<float*>()));
+	};
+	m_inst_reader[MetaTypeOf<int>().typeName()] = [](std::string inst_name, const Instance& inst) {
+		return inst.typeName() + " " + inst_name + " " + std::to_string(inst.getValue<int>());
+	};
+	m_inst_reader[MetaTypeOf<std::string>().typeName()] = [](std::string inst_name, const Instance& inst) {
+		return inst.typeName() + " " + inst_name + " " + inst.getValue<std::string>();
+	};
+	m_inst_reader[MetaTypeOf<std::vector<int>>().typeName()] = [](std::string inst_name, const Instance& inst) {
+		std::string ret;
+		ret = inst.typeName() + " " + inst_name;
+		int i = 0;
+		const std::vector<int>& vec = inst.getValue<const std::vector<int>&>();
+		ret += " [";
+		for (const auto& val : vec) {
+			ret += std::to_string(val);
+			if (i != vec.size() - 1)
+				ret += ", ";
+			i++;
+		}
+		ret += "]";
+		return ret;
+	};
+	m_inst_reader[MetaTypeOf<std::vector<std::shared_ptr<Obj>>>().typeName()] = [](std::string inst_name, const Instance& inst) {
+		std::string ret;
+		ret = inst.typeName() + " " + inst_name;
+		int i = 0;
+		const std::vector<std::shared_ptr<Obj>>& vec = (inst.getValue<const std::vector<std::shared_ptr<Obj>>&>());
+		ret += " [";
+		for (const auto& val : vec) {
+			Instance inst_ = Instance(static_cast<Obj&>(*val));
+			ret += m_inst_reader[inst_.typeName()]("Obj", inst_);
+			if (i != vec.size() - 1)
+				ret += ", ";
+			i++;
+		}
+		ret += "]";
+		return ret;
+	};
+	m_inst_reader[MetaTypeOf<std::map<std::string, int>>().typeName()] = [](std::string inst_name, const Instance& inst) {
+		std::string ret;
+		ret = inst.typeName() + " " + inst_name;
+		int i = 0;
+		const std::map<std::string, int>& map = inst.getValue<const std::map<std::string, int>&>();
+		ret += " {";
+		for (const auto& pair : map) {
+			ret += "{" + pair.first + ", " + std::to_string(pair.second) + "}";
+			if (i != map.size() - 1)
+				ret += ", ";
+			i++;
+		}
+		ret += "}";
+		return ret;
+	};
+	m_inst_reader[MetaTypeOf<E>().typeName()] = [](std::string inst_name, const Instance& inst) {
+		return inst.typeName() + " " + inst_name + " " + std::to_string((int)inst.getValue<E>());
+	};
+	m_inst_reader[MetaTypeOf<CusType>().typeName()] = [](std::string inst_name, const Instance& inst) {
+		std::string ret = inst.typeName() + " " + inst_name + "\n";
+		ret += "{\n";
+		MetaType mt = MetaTypeOf<CusType>();
+		for (auto& p : mt.properties()) {
+			if (m_inst_reader.find(p.type_name) != m_inst_reader.end()) {
+				Instance inst_ = p.getValue(inst);
+				ret += m_inst_reader[p.type_name](p.name, inst_) + "\n";
+			}
+		}
+		ret += "}\n";
+		return ret;
+	};
+	m_inst_reader[MetaTypeOf<Obj>().typeName()] = [](std::string inst_name, const Instance& inst) {
+		std::string ret = inst.typeName() + " " + inst_name + "\n";
+		ret += "{\n";
+		MetaType mt = MetaTypeOf<Obj>();
+		for (auto& p : mt.properties()) {
+			if (m_inst_reader.find(p.type_name) != m_inst_reader.end()) {
+				Instance inst_ = p.getValue(inst);
+				ret += m_inst_reader[p.type_name](p.name, inst_) + "\n";
+			}
+		}
+		ret += "}\n";
+		return ret;
+	};
+	m_inst_reader[MetaTypeOf<DerivObj>().typeName()] = [](std::string inst_name, const Instance& inst) {
+		std::string ret = inst.typeName() + " " + inst_name + "\n";
+		ret += "{\n";
+		MetaType mt = MetaTypeOf<DerivObj>();
+		for (auto& p : mt.properties()) {
+			if (m_inst_reader.find(p.type_name) != m_inst_reader.end()) {
+				Instance inst_ = p.getValue(inst);
+				ret += m_inst_reader[p.type_name](p.name, inst_) + "\n";
+			}
+		}
+		ret += "}\n";
+		return ret;
+	};
+
+	DerivObj obj;
+	Instance inst = Instance(obj);
+	std::cout << m_inst_reader[inst.typeName()]("obj", inst);
+}
+
+void printRegisteredTypes() {
+	std::cout << "==========" << __FUNCTION__ << "==========" << std::endl;
+
+	int i = 0;
+	for (auto& pair : global_class_info) {
+		std::cout << std::to_string(i++) << ". type name: " << pair.first << std::endl;
+	}
+	//for (auto& pair : type_name_map) {
+	//	std::cout << "registered raw type name: " << pair.first << " registered type name: " << pair.second << std::endl;
+	//}
+}
+
 int main() {
 	registerAll();
 	traitsTest();
+	variantTest();
 	readPropertiesTest();
 	writePropertiesTest();
-	serializeTest();
 	invokeMethodsTest();
 	createInstanceTest();
-	polymorphismTest();
-	variantTest();
+	serializeTest();
+	printRegisteredTypes();
 	return 0;
 }
