@@ -62,6 +62,7 @@ namespace traits {
 //    return name;
 //}
 
+std::unordered_map<std::string, std::string> type_name_map;
 // typeid能正确推导多态的类型（要有虚函数），和各种引用类型
 // typeid(T).name()的结果：
 // T -> T
@@ -73,14 +74,15 @@ namespace traits {
 // T* const -> T * __ptrXX
 // const T* const & -> T const * __ptrXX
 template<typename T>
+constexpr std::string rawTypeName() noexcept {
+    return typeid(T).name();
+}
+
+template<typename T>
 constexpr std::string typeName() noexcept {
-    std::string name = typeid(T).name();
-    if constexpr (std::is_pointer_v<std::remove_reference_t<T>>) {
-        std::regex pattern1(" \\* __ptr32");
-        std::regex pattern2(" \\* __ptr64");
-        name = std::regex_replace(name, pattern1, "*");
-        name = std::regex_replace(name, pattern2, "*");
-    }
+    std::string name = rawTypeName<T>();
+    if (type_name_map.find(name) != type_name_map.end())
+        name = type_name_map[name];
     return name;
 }
 
