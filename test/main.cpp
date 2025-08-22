@@ -115,6 +115,8 @@ void traitsTest() {
 	Obj& obj = DerivObj();
 	auto n11 = MetaTypeOf(obj).typeName();
 	auto n12 = MetaTypeOf<DerivObj>().typeName();
+	assert(n11 == n12);
+	assert(n11 == "DerivObj");
 }
 
 void variantTest() {

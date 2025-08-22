@@ -60,7 +60,7 @@ constexpr std::string rawTypeName() noexcept {
 
 template<typename T>
 constexpr std::string rawTypeName(T&& obj) noexcept {
-    return rawTypeName<T>();
+    return typeid(obj).name();
 }
 
 

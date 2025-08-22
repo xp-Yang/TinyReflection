@@ -167,19 +167,14 @@ struct ClassInfo {
 inline std::unordered_map<std::string, std::string> type_name_map;
 inline std::unordered_map<std::string, ClassInfo> global_class_info;
 
-template <class T>
-inline ClassInfo& registerClass(std::string class_name = {})
-{
-    std::string raw_class_name = traits::rawTypeName<T>();
+inline ClassInfo& registerClass(std::string raw_class_name, std::string class_name) {
     if (type_name_map.find(raw_class_name) == type_name_map.end()) {
         if (class_name.empty()) {
             class_name = raw_class_name;
-            if constexpr (std::is_pointer_v<std::remove_reference_t<T>>) {
-                std::regex pattern1(" \\* __ptr32");
-                std::regex pattern2(" \\* __ptr64");
-                class_name = std::regex_replace(class_name, pattern1, "*");
-                class_name = std::regex_replace(class_name, pattern2, "*");
-            }
+            std::regex pattern1(" \\* __ptr32");
+            std::regex pattern2(" \\* __ptr64");
+            class_name = std::regex_replace(class_name, pattern1, "*");
+            class_name = std::regex_replace(class_name, pattern2, "*");
         }
         type_name_map[raw_class_name] = class_name;
         global_class_info.insert({ class_name, ClassInfo{class_name, {}, {}} });
@@ -199,6 +194,13 @@ inline ClassInfo& registerClass(std::string class_name = {})
         }
     }
     return global_class_info.at(class_name);
+}
+
+template <class T>
+inline ClassInfo& registerClass(std::string class_name = {})
+{
+    std::string raw_class_name = traits::rawTypeName<T>();
+    return registerClass(raw_class_name, class_name);
 }
 
 
@@ -264,7 +266,10 @@ template <class T>
 inline MetaType MetaTypeOf() { return MetaType(registerClass<T>().class_name); }
 
 template <class T>
-inline MetaType MetaTypeOf(T&& obj) { return MetaTypeOf<T>(); }
+inline MetaType MetaTypeOf(T&& obj) { 
+    std::string raw_type_name = traits::rawTypeName(std::forward<T>(obj));
+    return MetaType(registerClass(raw_type_name, "").class_name);
+}
 
 
 // Instance引用原始对象，不管理其生命周期
@@ -280,6 +285,7 @@ public:
 public:
     void* instance() const { return m_data; }
     std::string typeName() const { return m_meta.typeName(); }
+    MetaType metaType() const { return m_meta; }
 
 public:
     template <typename T>
