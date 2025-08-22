@@ -277,7 +277,7 @@ class Instance {
 public:
     template <typename T>
     Instance(T&& obj)
-        : m_meta(MetaTypeOf<T>())
+        : m_meta(MetaTypeOf(std::forward<T>(obj)))
         , m_data((void*)(&obj))
     {}
     Instance(const Instance& rhs) = default;
@@ -358,7 +358,7 @@ public:
     Variant(const Variant& rhs) = default;
     template <class T>
     Variant(T&& obj) {
-        m_meta = MetaTypeOf<T>();
+        m_meta = MetaTypeOf(std::forward<T>(obj));
         m_data_size = sizeof(T);
         using ValueType = std::remove_const_t<std::remove_reference_t<T>>;
         // 调用T的拷贝or移动构造
