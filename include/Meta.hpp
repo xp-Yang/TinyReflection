@@ -33,18 +33,15 @@ namespace Meta {
 //     Method method = metaType.method(methodName);
 //     ReturnType ret = method.invoke<ReturnType>(obj, args...);
 //3.根据类名称创建实例
-//     MetaType meta = MetaTypeOf(obj);
-//     Constructor ctor = meta.constructor<int, std::string>();
+//     Constructor ctor = metaType.constructor<int, std::string>();
 //     Variant v = ctor.invoke(222, std::string("deriv"));
 //     DerivObj& d = v.getValue<DerivObj&>();
 //4.迭代对象的所有属性、方法
-//     Instance v(obj)
-//     MetaType type = v.metaType();
-//     for (int i = 0; i < type.propertyCount(); i++) {
-//         auto property = type.property(i);
+//     for (int i = 0; i < metaType.propertyCount(); i++) {
+//         auto property = metaType.property(i);
 //     }
-//     for (int i = 0; i < type.methodCount(); i++) {
-//         auto method = type.method(i);
+//     for (int i = 0; i < metaType.methodCount(); i++) {
+//         auto method = metaType.method(i);
 //     }
 //5.为类型，属性，函数，参数追加元数据
 //     TODO
