@@ -1,5 +1,10 @@
 # TinyReflection
+
 轻量型C++反射库
+
+
+
+## How to use
 
 0.注册类型
 
@@ -18,19 +23,18 @@
 1.根据名称读写对象的属性
 
 ```
-     T obj;
+     DerivObj obj;
      MetaType metaType = MetaTypeOf(obj);
-
      Property prop = metaType.property(propertyName);
-     prop.getValue<U>(&obj);
-     prop.setValue<U>(&obj, val);
+     U val = prop.getValue<U>(obj);
+     prop.setValue(obj, newVal);
 ```
 
 2.根据名称调用函数
 
 ```
      Method method = metaType.method(methodName);
-     method.invoke<ReturnType>(&obj, args...);
+     ReturnType ret = method.invoke<ReturnType>(obj, args...);
 ```
 
 3.根据类名称创建实例
@@ -51,9 +55,19 @@
          auto property = type.property(i);
      }
      for (int i = 0; i < type.methodCount(); i++) {
-         auto property = type.method(i);
+         auto method = type.method(i);
      }
 ```
 
 5.为类型，属性，函数，参数追加元数据
      TODO
+
+
+
+## How to build
+
+```
+mkdir build
+cd build
+cmake ..
+```

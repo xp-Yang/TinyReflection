@@ -19,18 +19,19 @@ namespace Meta {
 //         registerProperty(&DerivObj::x, "x").
 //         registerProperty(&DerivObj::y, "y").
 //         registerMethod(&DerivObj::getId, "getId");
-//     显式注册类名：registerClass<DerivObj>("DerivObj");
-//     隐式注册类名：registerClass<DerivObj>("");
+//     // 显式注册类名
+//     // registerClass<DerivObj>("DerivObj");
+//     // 隐式注册类名
+//     // registerClass<DerivObj>("");
 //1.根据名称读写对象的属性
-//     T obj;
+//     DerivObj obj;
 //     MetaType metaType = MetaTypeOf(obj);
-// 
 //     Property prop = metaType.property(propertyName);
-//     prop.getValue<U>(&obj);
-//     prop.setValue<U>(&obj, val);
+//     U val = prop.getValue<U>(obj);
+//     prop.setValue(obj, newVal);
 //2.根据名称调用函数
 //     Method method = metaType.method(methodName);
-//     method.invoke<ReturnType>(&obj, args...);
+//     ReturnType ret = method.invoke<ReturnType>(obj, args...);
 //3.根据类名称创建实例
 //     MetaType meta = MetaTypeOf(obj);
 //     Constructor ctor = meta.constructor<int, std::string>();
@@ -43,7 +44,7 @@ namespace Meta {
 //         auto property = type.property(i);
 //     }
 //     for (int i = 0; i < type.methodCount(); i++) {
-//         auto property = type.method(i);
+//         auto method = type.method(i);
 //     }
 //5.为类型，属性，函数，参数追加元数据
 //     TODO
@@ -114,9 +115,10 @@ struct Method {
     std::string signature;
 
     template <typename ReturnType, typename T, typename ... Args>
-    ReturnType invoke(T* instance, Args&&... args) const {
-        auto method = reinterpret_cast<ReturnType (T::*)(Args...)>(func);
-        return (instance->*method)(std::forward<Args>(args)...);
+    ReturnType invoke(T&& instance, Args&&... args) const {
+        using ValueType = std::remove_const_t<std::remove_pointer_t<std::remove_reference_t<T>>>;
+        auto method = reinterpret_cast<ReturnType (ValueType::*)(Args...)>(func);
+        return (instance.*method)(std::forward<Args>(args)...);
     }
 };
 

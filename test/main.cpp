@@ -173,8 +173,8 @@ void invokeMethodsTest() {
 	DerivObj obj;
 	MetaType mt = MetaTypeOf(obj);
 	std::vector<float> v = { 3.0f };
-	auto ret = mt.method("getId").invoke<int>(&obj, 1, std::string("2"), v);
-	mt.method("dumb").invoke<void>(&obj);
+	auto ret = mt.method("getId").invoke<int>(obj, 1, std::string("2"), v);
+	mt.method("dumb").invoke<void>(obj);
 }
 
 void createInstanceTest() {
@@ -307,12 +307,12 @@ void printRegisteredTypes() {
 
 int main() {
 	registerAll();
-	createInstanceTest();
 	traitsTest();
 	variantTest();
 	readPropertiesTest();
 	writePropertiesTest();
 	invokeMethodsTest();
+	createInstanceTest();
 	serializeTest();
 	printRegisteredTypes();
 	return 0;
