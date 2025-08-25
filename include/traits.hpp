@@ -64,6 +64,12 @@ constexpr std::string rawTypeName(T&& obj) noexcept {
 }
 
 
+template <typename Arg>
+inline std::string getArgTypeName() {
+    return MetaTypeOf<Arg>().typeName();
+}
+
+
 // »ù´¡ÈÝÆ÷ÌØÕ÷¼ì²é
 template <typename T, typename = void>
 struct is_container : std::false_type {};

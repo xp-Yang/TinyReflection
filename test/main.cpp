@@ -44,6 +44,8 @@ public:
 
 class DerivObj : public Obj {
 public:
+	DerivObj() = default;
+	DerivObj(int id, std::string name) : derivId(id) { this->name = name; }
 	int derivId = 109;
 	int getDerivId(int a, std::string b, const std::vector<float>& c) {
 		std::cout << "invoke Deriv::getDerivId success" << std::endl;
@@ -82,6 +84,8 @@ void registerAll() {
 		registerMethod(&Obj::getId, "getId");
 
 	registerClass<DerivObj>("DerivObj").
+		registerConstructor<DerivObj>().
+		registerConstructor<DerivObj, int, std::string>().
 		registerProperty(&DerivObj::x, "x").
 		registerProperty(&DerivObj::y, "y").
 		registerProperty(&DerivObj::z, "z").
@@ -174,9 +178,10 @@ void invokeMethodsTest() {
 }
 
 void createInstanceTest() {
-	MetaType mt = MetaTypeOf<Obj>();
-	Constructor obj_ctor = mt.constructor<>();
-	obj_ctor.invoke<Obj>();
+	MetaType mt = MetaTypeOf<DerivObj>();
+	Constructor obj_ctor = mt.constructor<int, std::string>();
+	Variant v = obj_ctor.invoke(222, std::string("deriv"));
+	DerivObj& d = v.getValue<DerivObj&>();
 }
 
 void serializeTest() {
@@ -292,7 +297,7 @@ void printRegisteredTypes() {
 	std::cout << "==========" << __FUNCTION__ << "==========" << std::endl;
 
 	int i = 0;
-	for (auto& pair : global_class_info) {
+	for (auto& pair : global_type_registry) {
 		std::cout << std::to_string(i++) << ". type name: " << pair.first << std::endl;
 	}
 	//for (auto& pair : type_name_map) {
@@ -302,12 +307,12 @@ void printRegisteredTypes() {
 
 int main() {
 	registerAll();
+	createInstanceTest();
 	traitsTest();
 	variantTest();
 	readPropertiesTest();
 	writePropertiesTest();
 	invokeMethodsTest();
-	createInstanceTest();
 	serializeTest();
 	printRegisteredTypes();
 	return 0;

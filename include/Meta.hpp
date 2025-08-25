@@ -1,10 +1,12 @@
 #ifndef Meta_hpp
 #define Meta_hpp
 
-#include <map>
+#include <functional>
 #include <unordered_map>
 #include <vector>
 #include <string>
+#include <tuple>
+#include <utility>
 #include <memory>
 #include <assert.h>
 #include "traits.hpp"
@@ -12,16 +14,17 @@
 namespace Meta {
 
 //0.注册类型
-//     registerClass<Obj>("Obj").
-//         registerConstructor<Obj>().
-//         registerProperty(&Obj::x, "x").
-//         registerProperty(&Obj::y, "y").
-//         registerMethod(&Obj::getId, "getId");
-//     显式注册类名：registerClass<Obj>("Obj");
-//     隐式注册类名：registerClass<Obj>("");
+//     registerClass<DerivObj>("DerivObj").
+//         registerConstructor<DerivObj, int, std::string>().
+//         registerProperty(&DerivObj::x, "x").
+//         registerProperty(&DerivObj::y, "y").
+//         registerMethod(&DerivObj::getId, "getId");
+//     显式注册类名：registerClass<DerivObj>("DerivObj");
+//     隐式注册类名：registerClass<DerivObj>("");
 //1.根据名称读写对象的属性
 //     T obj;
 //     MetaType metaType = MetaTypeOf(obj);
+// 
 //     Property prop = metaType.property(propertyName);
 //     prop.getValue<U>(&obj);
 //     prop.setValue<U>(&obj, val);
@@ -29,9 +32,10 @@ namespace Meta {
 //     Method method = metaType.method(methodName);
 //     method.invoke<ReturnType>(&obj, args...);
 //3.根据类名称创建实例
-//     TODO
-//     MetaType meta = MetaTypeOf<T>(obj);
-//     Variant v = meta.createInstance();
+//     MetaType meta = MetaTypeOf(obj);
+//     Constructor ctor = meta.constructor<int, std::string>();
+//     Variant v = ctor.invoke(222, std::string("deriv"));
+//     DerivObj& d = v.getValue<DerivObj&>();
 //4.迭代对象的所有属性、方法
 //     Instance v(obj)
 //     MetaType type = v.metaType();
@@ -45,6 +49,12 @@ namespace Meta {
 //     TODO
 
 class Instance;
+class Variant;
+
+template<typename... Args, typename std::size_t... I>
+std::tuple<Args...> transformArguments(const std::vector<Instance>&args, std::index_sequence<I...>) {
+    return std::make_tuple(args[I].getValue<Args>()...);
+}
 
 struct Property {
     enum Type : int {
@@ -77,10 +87,21 @@ struct Property {
 
 struct Constructor {
     std::vector<std::string> arg_types;
+    std::function<Variant(const std::initializer_list<Instance>&)> invoker;
 
-    template <typename T, typename ... Args>
-    T invoke(Args&&... args) const {
-        return T(args...);
+    template <typename ... Args>
+    Variant invoke(Args&&... args) const {
+        if (sizeof...(Args) != arg_types.size())
+            return Variant();
+        const auto& arg_types_ = std::initializer_list<std::string>{ traits::getArgTypeName<Args>() ... };
+        auto it = arg_types.begin();
+        auto it_ = arg_types_.begin();
+        for (; it != arg_types.end(); it++, it_++) {
+            if (*it != *it_)
+                return Variant();
+        }
+
+        return invoker(std::initializer_list<Instance>{std::forward<Args>(args) ...});
     }
 };
 
@@ -130,16 +151,15 @@ struct ClassInfo {
         return *this;
     }
 
-    template <typename Arg>
-    inline std::string getArgTypeName() {
-        return MetaTypeOf<Arg>().typeName();
-    }
-
-    template <class T, typename ... Args>
-    inline ClassInfo& registerConstructor(Args... args)
+    template <typename T, typename ... Args>
+    inline ClassInfo& registerConstructor()
     {
-        auto arg_types = std::initializer_list<std::string>{ getArgTypeName<Args>() ... };
-        Constructor ctor_info = { arg_types };
+        Constructor ctor_info;
+        ctor_info.arg_types = std::initializer_list<std::string>{ traits::getArgTypeName<Args>() ... };
+        ctor_info.invoker = [](const std::initializer_list<Instance>& args) -> Variant {
+            auto arg_tuple = transformArguments<Args...>(args, std::index_sequence_for<Args...>{});
+            return Variant(T(std::get<Args>(arg_tuple)...));
+        };
         ctor_infos.emplace_back(ctor_info);
         return *this;
     }
@@ -148,7 +168,7 @@ struct ClassInfo {
     inline ClassInfo& registerMethod(ReturnType(T::* method_ptr)(Args...), std::string method_name)
     {
         std::string return_type_name = MetaTypeOf<ReturnType>().typeName();
-        auto arg_types = std::initializer_list<std::string>{ getArgTypeName<Args>() ... };
+        auto arg_types = std::initializer_list<std::string>{ traits::getArgTypeName<Args>() ... };
         std::string method_signature = return_type_name + " " + method_name + "(";
         if (arg_types.size() == 0)
             method_signature += std::string(")");
@@ -165,7 +185,7 @@ struct ClassInfo {
 };
 
 inline std::unordered_map<std::string, std::string> type_name_map;
-inline std::unordered_map<std::string, ClassInfo> global_class_info;
+inline std::unordered_map<std::string, ClassInfo> global_type_registry;
 
 inline ClassInfo& registerClass(std::string raw_class_name, std::string class_name) {
     if (type_name_map.find(raw_class_name) == type_name_map.end()) {
@@ -177,7 +197,7 @@ inline ClassInfo& registerClass(std::string raw_class_name, std::string class_na
             class_name = std::regex_replace(class_name, pattern2, "*");
         }
         type_name_map[raw_class_name] = class_name;
-        global_class_info.insert({ class_name, ClassInfo{class_name, {}, {}} });
+        global_type_registry.insert({ class_name, ClassInfo{class_name, {}, {}} });
     }
     else {
         if (class_name.empty()) {
@@ -186,14 +206,14 @@ inline ClassInfo& registerClass(std::string raw_class_name, std::string class_na
         else {
             std::string origin_class_name = type_name_map.at(raw_class_name);
             if (origin_class_name != class_name) {
-                ClassInfo origin_class_info = global_class_info.at(origin_class_name);
+                ClassInfo origin_class_info = global_type_registry.at(origin_class_name);
                 type_name_map[origin_class_name] = class_name;
-                global_class_info.erase(origin_class_name);
-                global_class_info.insert({ class_name, origin_class_info });
+                global_type_registry.erase(origin_class_name);
+                global_type_registry.insert({ class_name, origin_class_info });
             }
         }
     }
-    return global_class_info.at(class_name);
+    return global_type_registry.at(class_name);
 }
 
 template <class T>
@@ -207,7 +227,7 @@ inline ClassInfo& registerClass(std::string class_name = {})
 class MetaType {
 public:
     MetaType() = default;
-    MetaType(std::string type_name) : m_class_info(global_class_info.at(type_name)) {}
+    MetaType(std::string type_name) : m_class_info(global_type_registry.at(type_name)) {}
     MetaType(const MetaType& rhs) = default;
 
     const std::string& typeName() const { return m_class_info.class_name; }
@@ -229,8 +249,8 @@ public:
     int constructorCount() const { return m_class_info.ctor_infos.size(); }
     Constructor constructor(int index) const { return m_class_info.ctor_infos[index]; }
     template<typename ... Args>
-    Constructor constructor(Args&& ... args) const {
-        const auto& arg_types = std::initializer_list<std::string>{ getArgTypeName<Args>() ... };
+    Constructor constructor() const {
+        const auto& arg_types = std::initializer_list<std::string>{ traits::getArgTypeName<Args>() ... };
         for (const auto& ctor_info : m_class_info.ctor_infos) {
             if (ctor_info.arg_types.size() != arg_types.size())
                 continue;
@@ -242,7 +262,7 @@ public:
             }
             return ctor_info;
         }
-        return {};
+        throw std::exception();
     }
     const std::vector<Constructor>& constructors() const { return m_class_info.ctor_infos; }
 
@@ -396,7 +416,7 @@ private:
     MetaType m_meta;
 };
 
-Instance Property::getValue(const Instance& instance) const {
+inline Instance Property::getValue(const Instance& instance) const {
     return Instance(type_name, ((char*)instance.instance() + offset));
 }
 

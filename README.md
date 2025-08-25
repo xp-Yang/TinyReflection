@@ -1,14 +1,26 @@
 # TinyReflection
 轻量型C++反射库
 
-支持：
+0.注册类型
+
+```
+     registerClass<DerivObj>("DerivObj").
+         registerConstructor<DerivObj, int, std::string>().
+         registerProperty(&DerivObj::x, "x").
+         registerProperty(&DerivObj::y, "y").
+         registerMethod(&DerivObj::getId, "getId");
+     // 显式注册类名
+     // registerClass<DerivObj>("DerivObj");
+     // 隐式注册类名
+     // registerClass<DerivObj>("");
+```
 
 1.根据名称读写对象的属性
 
 ```
      T obj;
      MetaType metaType = MetaTypeOf(obj);
-     
+
      Property prop = metaType.property(propertyName);
      prop.getValue<U>(&obj);
      prop.setValue<U>(&obj, val);
@@ -24,8 +36,10 @@
 3.根据类名称创建实例
 
 ```
-     MetaType meta = MetaTypeOf<T>(obj);
-     Instance v = meta.createInstance();
+     MetaType meta = MetaTypeOf(obj);
+     Constructor ctor = meta.constructor<int, std::string>();
+     Variant v = ctor.invoke(222, std::string("deriv"));
+     DerivObj& d = v.getValue<DerivObj&>();
 ```
 
 4.迭代对象的所有属性、方法
